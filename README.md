@@ -37,8 +37,9 @@ photo-enhance photo_plan.json publish-copies --address "서울 중구 예시로 
 
 ## 메타데이터의 의미
 
-- 실제 공개 페이지에서 확인한 게시 시각과 **게시 장소**를 XMP `MetadataDate`, `dc:source`, `photoshop:Instructions`에 기록합니다. 게시 시각에는 시간대 오프셋이 필요합니다.
-- EXIF 촬영 시각과 GPS는 원본 값 그대로 유지합니다. 게시 시각을 촬영 시각으로 위장하거나 촬영하지 않은 장소의 GPS를 만들지 않습니다.
+- 지정한 게시 시각을 출력 사본의 EXIF `DateTime`, `DateTimeOriginal`, `DateTimeDigitized`와 XMP `MetadataDate`에 기록합니다. 원본 사진의 실제 촬영 시각과 다른 값이 되며, 게시 시각에는 시간대 오프셋이 필요합니다.
+- 주소를 EXIF `UserComment`·`GPSAreaInformation` 및 XMP `dc:source`·`photoshop:Instructions`에 기록합니다. 기존 GPS 좌표는 사본에서 제거합니다. 주소만으로 위도·경도를 추정해 생성하지 않으므로 지도 앱의 좌표 위치 표시는 보장하지 않습니다.
+- 원본 파일은 보존하지만 출력 사본의 촬영 시각·위치 정보는 게시 맥락에 맞춰 바뀝니다. 이전 촬영 정보가 필요하면 원본을 참조하세요.
 - 사진의 사용 권리와 장면은 사용자가 확인해야 합니다. `--enhance`는 AI 생성 콘텐츠 판별을 바꾸는 기능이 아닙니다.
 - 플랫폼은 업로드 후 파일명이나 XMP를 재작성·제거할 수 있습니다. 업로드 사본과 공개 이미지의 메타데이터는 별도로 검사하세요.
 

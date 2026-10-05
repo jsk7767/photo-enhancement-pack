@@ -29,7 +29,7 @@ def _sample(path: Path) -> None:
     image.save(path, exif=exif)
 
 
-def test_copy_preserves_capture_and_writes_publication_context(tmp_path: Path) -> None:
+def test_copy_sets_publication_time_as_capture_and_writes_location(tmp_path: Path) -> None:
     source = tmp_path / "source.jpg"
     output = tmp_path / "upload.jpg"
     _sample(source)
@@ -40,7 +40,10 @@ def test_copy_preserves_capture_and_writes_publication_context(tmp_path: Path) -
     assert hashlib.sha256(source.read_bytes()).hexdigest() == before
     assert result["source_sha256"] == before
     with Image.open(output) as image:
-        assert image.getexif().get(36867) == "2024:04:05 12:30:00"
+        assert image.getexif().get(36867) == "2026:10:05 12:20:00"
+        assert image.getexif().get(306) == "2026:10:05 12:20:00"
+        assert image.getexif().get(37510) == b"UNICODE\x00" + f"사진 장소: {ADDRESS}".encode("utf-16-be")
+        assert image.getexif().get_ifd(34853).get(27) == b"UNICODE\x00" + ADDRESS.encode("utf-16-be")
         packet = ElementTree.fromstring(image.info["xmp"])
     entry = packet.find(f".//{{{NS['rdf']}}}Description")
     assert entry is not None
@@ -77,7 +80,7 @@ def test_missing_scene_does_not_create_output(tmp_path: Path) -> None:
     assert not output.exists()
 
 
-def test_enhancement_is_optional_and_preserves_exif(tmp_path: Path) -> None:
+def test_enhancement_is_optional_and_preserves_publication_metadata(tmp_path: Path) -> None:
     source = tmp_path / "source.jpg"
     plain = tmp_path / "plain.jpg"
     enhanced = tmp_path / "enhanced.jpg"
@@ -88,5 +91,5 @@ def test_enhancement_is_optional_and_preserves_exif(tmp_path: Path) -> None:
 
     with Image.open(plain) as original, Image.open(enhanced) as adjusted:
         assert ImageStat.Stat(adjusted.convert("L")).mean[0] > ImageStat.Stat(original.convert("L")).mean[0]
-        assert adjusted.getexif().get(36867) == "2024:04:05 12:30:00"
+        assert adjusted.getexif().get(36867) == "2026:10:05 12:20:00"
         assert adjusted.info["xmp"] == original.info["xmp"]

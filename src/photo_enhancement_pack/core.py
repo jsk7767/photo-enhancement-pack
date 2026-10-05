@@ -39,6 +39,26 @@ def _packet(source_xmp: bytes | None, published_at: str, address: str) -> bytes:
     return ElementTree.tostring(root, encoding="utf-8")
 
 
+def _publication_exif(source_exif: bytes | None, moment: datetime, address: str) -> bytes:
+    exif = Image.Exif()
+    if source_exif:
+        exif.load(source_exif)
+    capture_time = moment.strftime("%Y:%m:%d %H:%M:%S")
+    exif[306] = capture_time  # DateTime
+    exif[36867] = capture_time  # DateTimeOriginal
+    exif[36868] = capture_time  # DateTimeDigitized
+    exif[37521] = f"{moment.microsecond:06d}"  # SubsecTimeOriginal
+    exif[36880] = moment.strftime("%z")[:3] + ":" + moment.strftime("%z")[3:]  # OffsetTime
+    exif[36881] = exif[36880]  # OffsetTimeOriginal
+    exif[36882] = exif[36880]  # OffsetTimeDigitized
+    exif[37510] = b"UNICODE\x00" + f"사진 장소: {address}".encode("utf-16-be")  # UserComment
+    gps = exif.get_ifd(34853)
+    gps.clear()
+    gps[27] = b"UNICODE\x00" + address.encode("utf-16-be")  # GPSAreaInformation, address not coordinates
+    exif[34853] = gps
+    return exif.tobytes()
+
+
 def prepare_photo(
     source: Path,
     destination: Path,
@@ -56,7 +76,7 @@ def prepare_photo(
         if image.format != "JPEG":
             raise ValueError(f"JPEG 사진만 지원합니다: {source}")
         xmp = image.info.get("xmp")
-        exif = image.info.get("exif")
+        exif = _publication_exif(image.info.get("exif"), moment, address)
         icc = image.info.get("icc_profile")
         image.load()
         output_image = image
@@ -71,7 +91,7 @@ def prepare_photo(
             format="JPEG",
             quality=95,
             xmp=_packet(xmp, moment.isoformat(), address),
-            exif=exif or b"",
+            exif=exif,
             icc_profile=icc or b"",
         )
     with Image.open(destination) as result:
@@ -88,9 +108,15 @@ def prepare_photo(
         ):
             destination.unlink()
             raise RuntimeError("출력 사진의 XMP가 요청 값과 다릅니다.")
-        if exif and result.info.get("exif") != exif:
-            destination.unlink()
-            raise RuntimeError("원본의 촬영 EXIF를 보존하지 못했습니다.")
+        output_exif = result.getexif()
+        exif_valid = (
+            output_exif.get(36867) != moment.strftime("%Y:%m:%d %H:%M:%S")
+            or output_exif.get(37510) != b"UNICODE\x00" + f"사진 장소: {address}".encode("utf-16-be")
+            or output_exif.get_ifd(34853).get(27) != b"UNICODE\x00" + address.encode("utf-16-be")
+        )
+    if exif_valid:
+        destination.unlink()
+        raise RuntimeError("출력 사진의 EXIF 촬영 시각 또는 장소가 요청 값과 다릅니다.")
     return {
         "source": str(source),
         "source_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
